@@ -8,15 +8,16 @@ import "../libary/math/SafeMath.sol";
 import "../interface/uniswapv2/IUniswapV2Router02.sol";
 import "../interface/uniswapv2/IUniswapV2Factory.sol";
 import "../interface/IERC20Extended.sol";
+import "../interface/IAntiBot.sol";
 
 import "./Auth.sol";
 import "./BaseToken.sol";
 import "./DividendDistributor.sol";
 
-contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
+contract AntiBotBuybackBabyToken is IERC20Extended, Auth, BaseToken {
     using SafeMath for uint256;
-    // using Address for address;
-    // using Address for address payable;
+    using Address for address;
+    using Address for address payable;
 
     uint256 public constant VERSION = 3;
 
@@ -70,6 +71,9 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
     mapping(address => bool) public isFeeExempt;
     mapping(address => bool) public isDividendExempt;
 
+    IAntiBot public pinkAntiBot;
+    bool public enableAntiBot;
+
     event AutoLiquify(uint256 amountBNB, uint256 amountBOG);
     event BuybackMultiplierActive(uint256 duration);
 
@@ -91,6 +95,7 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
         uint256 totalSupply_,
         address rewardToken_,
         address router_,
+        address antiBot_,
         uint256[5] memory feeSettings_,
         address serviceFeeReceiver_,
         uint256 serviceFee_
@@ -98,6 +103,10 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
         _name = name_;
         _symbol = symbol_;
         _totalSupply = totalSupply_;
+
+        pinkAntiBot = IAntiBot(antiBot_);
+        pinkAntiBot.setTokenOwner(msg.sender);
+        enableAntiBot = true;
 
         rewardToken = rewardToken_;
         router = IUniswapV2Router02(router_);
@@ -122,7 +131,6 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
 
         marketingFeeReceiver = msg.sender;
         require(
-            // !marketingFeeReceiver.isContract(),
             marketingFeeReceiver.code.length == 0,
             "Marketing wallet cannot be a contract"
         );
@@ -136,7 +144,7 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
         emit TokenCreated(
             msg.sender,
             address(this),
-            TokenType.buybackBaby,
+            TokenType.antiBotBuybackBaby,
             VERSION
         );
 
@@ -160,6 +168,10 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
         buybackMultiplierNumerator = 200;
         buybackMultiplierDenominator = 100;
         buybackMultiplierLength = 30 minutes;
+    }
+
+    function setEnableAntiBot(bool _enable) external authorized {
+        enableAntiBot = _enable;
     }
 
     receive() external payable {}
@@ -233,6 +245,10 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
         address recipient,
         uint256 amount
     ) internal returns (bool) {
+        if (enableAntiBot) {
+            pinkAntiBot.onPreTransferCheck(sender, recipient, amount);
+        }
+
         if (inSwap) {
             return _basicTransfer(sender, recipient, amount);
         }
@@ -307,7 +323,6 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
                 .mul(buybackMultiplierNumerator)
                 .div(buybackMultiplierDenominator)
                 .sub(totalFee);
-
             uint256 increasedFee = totalFee.add(
                 feeIncrease.mul(remainingTime).div(buybackMultiplierLength)
             );
@@ -356,6 +371,7 @@ contract BuybackBabyToken is IERC20Extended, Auth, BaseToken {
                 .div(totalFee)
                 .div(2);
         }
+
         uint256 amountToSwap = swapThreshold.sub(amountToLiquify);
 
         address[] memory path = new address[](2);
