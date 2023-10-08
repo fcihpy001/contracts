@@ -15,6 +15,11 @@ https://book.getfoundry.sh/
 
 ## Usage
 
+### Install openzeppelin
+```
+forge install OpenZeppelin/openzeppelin-contracts
+
+```
 ### Build
 
 ```shell
