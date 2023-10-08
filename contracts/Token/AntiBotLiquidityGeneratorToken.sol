@@ -10,8 +10,6 @@ import "../interface/uniswapv2/IUniswapV2Factory.sol";
 import "../libary/math/SafeMath.sol";
 import "./BaseToken.sol";
 
-
-
 contract AntiBotLiquidityGeneratorToken is IERC20, Ownable, BaseToken {
     using SafeMath for uint256;
     // using Address for address;
