@@ -18,7 +18,7 @@ https://book.getfoundry.sh/
 ### Install openzeppelin
 ```
 forge install OpenZeppelin/openzeppelin-contracts
-
+forge install OpenZeppelin/openzeppelin-contracts-upgradeable
 ```
 ### Build
 
