@@ -20,4 +20,7 @@ interface IPublicIDO {
         Failed,
         Succeed
     }
+
+    function withdrawToken(address token, uint256 amt) external;
+    function setEmergencyMode(bool emergency) external;
 }

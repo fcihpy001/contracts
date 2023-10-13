@@ -9,9 +9,9 @@ import "../interface/uniswapv2/IUniswapV2Factory.sol";
 import "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import "openzeppelin/access/Ownable.sol";
 
-error InvalidBuyAmount();
+contract BaseIDO is IIDO, IPublicIDO, Ownable {
+    error InvalidBuyAmount();
 
-contract PublicIDO is IIDO, IPublicIDO, Ownable {
     struct IDOUserInfo {
         uint256 amount;
         uint256 claimed;
@@ -62,7 +62,8 @@ contract PublicIDO is IIDO, IPublicIDO, Ownable {
         status = IDOStatus.Canceled;
     }
 
-    function finish() external onlyOwner {
+    /// should be override
+    function finish() internal virtual onlyOwner {
         bool suceess;
         address idoToken = idoConfig.buyToken;
 
@@ -230,7 +231,7 @@ contract PublicIDO is IIDO, IPublicIDO, Ownable {
         }
 
         if (referer != address(0)) {
-            // todo
+            //
             _splitRefererReward(amount, referer, msg.sender);
         }
 
@@ -266,6 +267,7 @@ contract PublicIDO is IIDO, IPublicIDO, Ownable {
     ////////////////////////////////////////////////////////////////////////////
     // PRIVATE FUNCTIONS
     ////////////////////////////////////////////////////////////////////////////
+
     function _validateIDOable(address addr) private view {
         uint32 ts = uint32(block.timestamp);
         require(status == IDOStatus.Running, "not running");

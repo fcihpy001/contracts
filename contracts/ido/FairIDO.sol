@@ -1,7 +1,6 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-import "../interface/IIDO.sol";
 import "../interface/IPublicIDO.sol";
 import "../interface/uniswapv2/IUniswapV2Router01.sol";
 import "../interface/uniswapv2/IUniswapV2Factory.sol";
@@ -9,12 +8,58 @@ import "../interface/uniswapv2/IUniswapV2Factory.sol";
 import "openzeppelin/token/ERC20/utils/SafeERC20.sol";
 import "openzeppelin/access/Ownable.sol";
 
-error InvalidBuyAmount();
+error InvalidIDOAmount();
 
-contract PublicIDO is IIDO, IPublicIDO, Ownable {
+contract FairIDO is IPublicIDO, Ownable {
     struct IDOUserInfo {
         uint256 amount;
         uint256 claimed;
+    }
+
+    struct IDOConfig {
+        address idoToken;
+        address buyToken;
+        uint256 softCap;
+        uint256 minBuyAmount;
+        uint256 maxBuyAmount;
+        uint32 refundType;
+        uint32 startTs;
+        uint32 endTs;
+        // If I spend 1 BNB how many xx tokens will I receive?
+        uint32 presaleRate;
+    }
+
+    struct IDOWhiteList {
+        uint32 l1ColdDown;
+        uint32 l2ColdDown;
+        mapping (address => uint32) l1WhiteList;
+        mapping (address => uint32) l2WhiteList;
+    }
+
+    struct IDORelease {
+        bool linearRelease;
+        uint32 firstClaimPercent;
+        uint32 cyclePercent;
+        uint32 releaseDays;
+    }
+
+    struct IDOLiquidity {
+        // public
+        address router;   // pancake router
+        address factory;  // pancake factory
+
+        // liquidity lockup
+        uint32 lockupMinutes;  // liquidityLockTime must be greater than or equal to 5
+        uint32 liquidityPercent;  // After the presale is completed, the corresponding BNB amount will be added to the liquidity pool, with a minimum of 51%
+        // Enter the percentage of raised funds that should be allocated to Liquidity on (Min 51%, Max 100%).
+        // If I spend 1 BNB on how many xx tokens will I receive? Usually this amount is lower than presale
+        // rate to allow for a higher listing price on
+        uint32 listingRate;
+    }
+
+    struct IDOInvitation {
+        bool invitePromotion;
+        uint32[7] rewardRatio;  // level
     }
 
     bool public emergencyMode; // can only be set by toplink admin contract
@@ -99,18 +144,12 @@ contract PublicIDO is IIDO, IPublicIDO, Ownable {
         IERC20(lp).transfer(msg.sender, IERC20(lp).balanceOf(address(this)));
     }
 
-    function withdrawToken(address token, uint256 amt) external {
+    function withdrawToken(address token, uint256 amt) external onlyOwner {
         require(status == IDOStatus.Canceled ||
             status == IDOStatus.Failed ||
             status == IDOStatus.Succeed, "running");
         require(emergencyMode == true, "only emergency mode");
-        require(msg.sender == topLinkAdmin, "no auth");
-        if (token != address(0)) {
-            IERC20(token).transfer(msg.sender, amt);
-        } else {
-            (bool sent,) = msg.sender.call{value: amt}("");
-            require(sent, "Failed to send Ether");
-        }
+        IERC20(token).transfer(msg.sender, amt);
     }
 
     function updateProjectInfo(string calldata _ipfs) external onlyOwner {
@@ -212,15 +251,8 @@ contract PublicIDO is IIDO, IPublicIDO, Ownable {
 
         IDOUserInfo storage investInfo = presaleBuyers[msg.sender];
         uint256 total = investInfo.amount + amount;
-        if ((idoConfig.minBuyAmount != 0 && total < idoConfig.minBuyAmount) ||
-            (idoConfig.maxBuyAmount != 0 && total > idoConfig.maxBuyAmount)) {
-            revert InvalidBuyAmount();
-        }
-
-        if (idoConfig.buyToken == address(0)) {
-            require(address(this).balance + amount <= idoConfig.hardCap, "reach hardcap");
-        } else {
-            require(IERC20(idoConfig.buyToken).balanceOf(address(this)) + amount <= idoConfig.hardCap, "reach hardcap");
+        if (total < idoConfig.minBuyAmount || total > idoConfig.maxBuyAmount) {
+            revert InvalidIDOAmount();
         }
     
         if (idoConfig.buyToken == address(0x0)) {
