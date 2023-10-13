@@ -1,7 +1,12 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.20;
 
-interface IFairIDO {
+interface IPublicIDO {
+    event Contribute (
+        address indexed member,
+        address indexed referer,
+        uint256 amount
+    );
 
     enum WhiteList {
         NoWhiteList,
